@@ -1,0 +1,11 @@
+/snap/clion/152/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=/usr/bin/clang -G "CodeBlocks - Unix Makefiles" /home/samx/Development/hikr-scraper
+-- The C compiler identification is Clang 11.0.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/clang - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Found CURL: -lcurl (found version "7.68.0")  
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/samx/Development/hikr-scraper/cmake-build-debug

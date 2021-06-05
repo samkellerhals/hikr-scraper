@@ -1,0 +1,20 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/samx/Development/hikr-scraper/hikr.c
+stdio.h
+-
+curl/curl.h
+-
+stdlib.h
+-
+time.h
+-
+string.h
+-
+
