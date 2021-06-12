@@ -1,3 +1,5 @@
-/img
-/html
+/img/*.jpg
+/html/*.html
 .idea
+cmake-build-debug
+./hikr_scraper

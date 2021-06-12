@@ -8,28 +8,30 @@ struct Locations {
     char *title;
 };
 
+const int RANDOM_NUM_LOWER_BOUND = 2000000;
+
+
 /**
  * Generate random number starting from lower bound range
- * Returns pointer to an array of random numbers.
+ * @param n number of random numbers to generate.
+ * @return pointer to an array of random numbers.
  */
-int *generate_random_numbers(int nfiles) {
-    int lower_bound = 2000000;
-
-
+int *generate_random_numbers(int n)
+{
     // allocate space for array of hikr ids on heap, so we can
     // reuse it to generate download URLs.
-    int *arrPtr = (int*)malloc(nfiles * sizeof(int));
+    int *arrPtr = (int*)malloc(n * sizeof(int));
     if (arrPtr == NULL) {
         printf("Could not allocate memory, exiting.");
-        return EXIT_FAILURE;
+        return (int *) EXIT_FAILURE;
     }
 
     // We need to seed rand() to get random numbers
     srand ( time(NULL) );
 
-    for (int i = 0; i < nfiles; i++) {
+    for (int i = 0; i < n; i++) {
         int rand_num = rand() % 10000;
-        arrPtr[i] = rand_num + lower_bound;
+        arrPtr[i] = rand_num + RANDOM_NUM_LOWER_BOUND;
     }
 
     return arrPtr;
@@ -39,31 +41,37 @@ int *generate_random_numbers(int nfiles) {
 /**
  * Download a resource from a URL, and save it to a file using a specified file name.
  * This function also expects an initialised curl instance.
+ * @param curl pointer to curl object.
+ * @param url pointer to url character array.
+ * @param fname pointer to filename character array. File will be saved using this name.
+ * @return int HTTP status code of the request.
  */
-void download_file(CURL *curl, char *url, char *fname) {
+int download_file(CURL *curl, char *url, char *fname)
+{
     FILE *fp = fopen(fname, "wp");
     // set curl options
+    long http_code = 0;
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
-    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 0);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-    
+    curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http_code);
     // download file and save to file
     CURLcode result = curl_easy_perform(curl);
 
     if (result == CURLE_OK) {
         printf("Downloaded %s successfully.", url);
+        return http_code;
     } else {
         fprintf(stderr, "Download problem: %s\n", curl_easy_strerror(result));
+        return http_code;
     }
-    fclose(fp);
-    free(url);
 }
 
 /**
- * Create the hikr download strings.
- * @param postId the id of the post to download.
- * @return Pointer to character array (download url).
+ * Creates a hikr image url.
+ * @param photoId the id of the photo to download.
+ * @return Pointer to character array (image url).
  */
 char *getImageUrl(int photoId)
 {
@@ -73,9 +81,9 @@ char *getImageUrl(int photoId)
 }
 
 /**
- * Create the hikr download strings.
- * @param postId the id of the post to download.
- * @return Pointer to character array (download url).
+ * Creates a hikr photo url.
+ * @param photoId the id of the photo to download.
+ * @return Pointer to character array (post url).
  */
 char *getPostUrl(int photoId)
 {
@@ -84,12 +92,25 @@ char *getPostUrl(int photoId)
     return url;
 }
 
+/**
+ * Creates a slice of a character array.
+ * @param str pointer to string to slice.
+ * @param result pointer to array to store slice.
+ * @param start start index of the slice.
+ * @param end end index of the slice.
+ * @return void
+ */
 void slice(const char *str, char *result, size_t start, size_t end)
 {
     strncpy(result, str + start, end - start);
 }
 
-struct Locations findLinkContent(char *string)
+/**
+ * Extracts innerHTML string of a link <a> HTML tag (the title of the post in this case)
+ * @param string pointer to HTML string.
+ * @return a Locations struct with its title field being the extracted innerHTML content of the link.
+ */
+struct Locations getLinkContent(char *string)
 {
     // find position of closing tag >
     char *linkStart = strstr(string, "<a");
@@ -106,10 +127,15 @@ struct Locations findLinkContent(char *string)
     char *filename = malloc(sizeof(title) + 4);
     strcpy(filename, "img/");
     location.title = strcat(filename, title);
-    free(title);
     return location;
 }
 
+/**
+ * Extracts locations/metdata from a HTML page from a given Hikr image post.
+ * The current implementation only extracts the post title.
+ * @param FILE pointer to the HTML post.
+ * @return a Locations struct.
+ */
 struct Locations extractLocationsFromHtml(FILE *fp)
 {
     fseek(fp, 0, SEEK_END);
@@ -134,7 +160,7 @@ struct Locations extractLocationsFromHtml(FILE *fp)
     slice(pfound, targetHtml, 0, dposfoundend);
 
     // we now need to process the char array to extract all relevant <a> tags and their innerHTML content
-    return findLinkContent(targetHtml);
+    return getLinkContent(targetHtml);
 }
 
 
@@ -164,9 +190,17 @@ int main(int argc, char **argv) {
             snprintf(imageFileName, 100, "img/img%d.jpg", i);
             snprintf(postFileName, 100, "html/post%d.html", i);
 
-            download_file(curl, imageUrl, imageFileName);
-            download_file(curl, postUrl, postFileName);
+            int imgStatus = download_file(curl, imageUrl, imageFileName);
+            int postStatus = download_file(curl, postUrl, postFileName);
 
+            // if any of the downloads fail we attempt to download a new image
+            if (imgStatus == 404 || postStatus == 404){
+                int delImage = remove(imageFileName);
+                int delPost = remove(postFileName);
+                continue;
+            }
+
+            // Extract tour title from HTML and use as filename
             FILE *fp = fopen(postFileName, "r");
 
             if (fp == NULL) {
@@ -177,16 +211,7 @@ int main(int argc, char **argv) {
             struct Locations locations = extractLocationsFromHtml(fp);
 
             int ret = rename(imageFileName, strcat(locations.title, ".jpg"));
-
-            // TODO: if download did not succeed print error message and continue
-
-            // TODO: generate PDF using https://github.com/libharu/libharu, call from pdf.c
-            // TODO: free other vars
         }
     }
-
-    // perform cleanup before exit
-    curl_easy_cleanup(curl);
     return EXIT_SUCCESS;
-
 }
