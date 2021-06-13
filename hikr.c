@@ -175,8 +175,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, "CURL initialisation failed.\n");
     } else {
 
-        // TODO: make temporary directory and save files to temp directory.
-
         int * random_numbers = generate_random_numbers(nfiles);
 
         for (int i = 0; i < nfiles; i++) {
